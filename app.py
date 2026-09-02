@@ -7,7 +7,6 @@ from model import evaluate_picks, load_team_epa
 st.set_page_config(page_title="duuhduuh model", layout="wide")
 
 st.title(" duuhduuh model")
-st.caption("Point Spread Differential Engine")
 
 st.sidebar.header("duuhduuh Control Panel")
 default_key = st.secrets.get("ODDS_API_KEY", "")
@@ -18,7 +17,7 @@ selected_week = st.sidebar.number_input("NFL Week", min_value=1, max_value=18, v
 
 @st.cache_data
 def get_nfl_schedule(season_year, week_num):
-    """Fetches the official full NFL schedule for a specific week."""
+    """Fetches full NFL schedule formatted as Favorite (Left) vs Underdog (Right)."""
     try:
         sched = nfl.import_schedules([season_year])
         week_games = sched[(sched['week'] == week_num) & (sched['game_type'] == 'REG')]
@@ -26,7 +25,6 @@ def get_nfl_schedule(season_year, week_num):
         if week_games.empty:
             return pd.DataFrame()
             
-        # Standardize team names to match betting market formats
         team_mapping = {
             'ARI': 'Arizona Cardinals', 'ATL': 'Atlanta Falcons', 'BAL': 'Baltimore Ravens',
             'BUF': 'Buffalo Bills', 'CAR': 'Carolina Panthers', 'CHI': 'Chicago Bears',
@@ -42,51 +40,72 @@ def get_nfl_schedule(season_year, week_num):
         }
         
         schedule_df = pd.DataFrame({
+            'favorite_team': week_games['home_team'].map(team_mapping).fillna(week_games['home_team']),
+            'favorite_spread': 3.0,  # Default positive point spread given by favorite
+            'underdog_team': week_games['away_team'].map(team_mapping).fillna(week_games['away_team']),
             'home_team': week_games['home_team'].map(team_mapping).fillna(week_games['home_team']),
-            'away_team': week_games['away_team'].map(team_mapping).fillna(week_games['away_team']),
-            'league_home_spread': 0.0  # Placeholder to fill with your pool's lines
+            'away_team': week_games['away_team'].map(team_mapping).fillna(week_games['away_team'])
         })
         return schedule_df
     except Exception as e:
         return pd.DataFrame()
 
-# Load full schedule automatically
 full_schedule = get_nfl_schedule(season, selected_week)
 
 if full_schedule.empty:
-    st.warning(f"Could not load automatic schedule for {season} Week {selected_week}. Fallback table loaded below.")
     full_schedule = pd.DataFrame({
+        'favorite_team': ['Kansas City Chiefs', 'Dallas Cowboys', 'Detroit Lions', 'Buffalo Bills'],
+        'favorite_spread': [3.0, 2.5, 6.5, 3.5],
+        'underdog_team': ['Baltimore Ravens', 'Philadelphia Eagles', 'Green Bay Packers', 'Miami Dolphins'],
         'home_team': ['Kansas City Chiefs', 'Dallas Cowboys', 'Detroit Lions', 'Buffalo Bills'],
-        'away_team': ['Baltimore Ravens', 'Philadelphia Eagles', 'Green Bay Packers', 'Miami Dolphins'],
-        'league_home_spread': [-3.0, 2.5, -6.5, -3.5]
+        'away_team': ['Baltimore Ravens', 'Philadelphia Eagles', 'Green Bay Packers', 'Miami Dolphins']
     })
 
-st.subheader(f"1. Week {selected_week} Schedule ({len(full_schedule)} Games)")
+st.subheader(f"1. Input Locked League Lines for Week {selected_week}")
+st.info("👈 Favorites (giving points) are on the left. 👉 Underdogs (getting points) are on the right.")
 
-edited_league_df = st.data_editor(full_schedule, num_rows="dynamic", use_container_width=True)
+# Display table allowing user to edit Favorite, Spread, and Underdog
+edited_league_df = st.data_editor(
+    full_schedule[['favorite_team', 'favorite_spread', 'underdog_team', 'home_team', 'away_team']], 
+    column_config={
+        "favorite_team": "Favorite (Giving Points)",
+        "favorite_spread": st.column_config.NumberColumn("Spread (Points Given)", help="Enter positive spread (e.g. 3.5)", min_value=0.0, step=0.5),
+        "underdog_team": "Underdog (Receiving Points)",
+        "home_team": None,  # Hidden background reference for odds matching
+        "away_team": None
+    },
+    use_container_width=True
+)
+
+# Convert Favorite/Underdog spreads back to standard home/away spread for engine processing
+eval_df = edited_league_df.copy()
+eval_df['league_home_spread'] = eval_df.apply(
+    lambda r: -abs(r['favorite_spread']) if r['favorite_team'] == r['home_team'] else abs(r['favorite_spread']),
+    axis=1
+)
 
 if st.button("🚀 Run duuhduuh Model Evaluation"):
     with st.spinner("Fetching market shifts and calculating pool leverage..."):
-        results = evaluate_picks(edited_league_df, odds_api_key, season)
+        results = evaluate_picks(eval_df, odds_api_key, season)
         
         st.subheader("2. Recommended Picks & Leverage Scores")
         
         col1, col2 = st.columns(2)
         top_pick = results.iloc[results['leverage_score'].abs().idxmax()]
-        col1.metric("Highest Leverage Game", f"{top_pick['home_team']} vs {top_pick['away_team']}")
+        col1.metric("Highest Leverage Game", f"{top_pick['favorite_team']} vs {top_pick['underdog_team']}")
         col2.metric("Top Pick Recommendation", top_pick['recommended_pick'])
         
         st.dataframe(
-            results[['home_team', 'away_team', 'league_home_spread', 'market_home_spread', 'spread_diff', 'leverage_score', 'recommended_pick']],
+            results[['favorite_team', 'favorite_spread', 'underdog_team', 'market_home_spread', 'spread_diff', 'leverage_score', 'recommended_pick']],
             use_container_width=True
         )
         
         fig = px.bar(
             results,
-            x='home_team',
+            x='favorite_team',
             y='leverage_score',
             color='leverage_score',
-            title="Pool Leverage Score (Positive = Pick Home | Negative = Pick Away)",
+            title="Pool Leverage Score (Positive = Favorite Value | Negative = Underdog Value)",
             color_continuous_scale='RdYlGn'
         )
         st.plotly_chart(fig, use_container_width=True)
