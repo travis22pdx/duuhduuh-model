@@ -61,7 +61,7 @@ if full_schedule.empty:
         'away_team': ['Baltimore Ravens', 'Philadelphia Eagles', 'Green Bay Packers', 'Miami Dolphins']
     })
 
-st.subheader(f"1. Input Locked League Lines for Week {selected_week}")
+st.subheader(f"1. Locked League Lines for Week {selected_week}")
 st.info("👈 Favorites (giving points) are on the left. 👉 Underdogs (getting points) are on the right.")
 
 # Display table allowing user to edit Favorite, Spread, and Underdog
