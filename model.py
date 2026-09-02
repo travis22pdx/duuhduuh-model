@@ -70,10 +70,14 @@ def calculate_key_boost(league_spread, market_spread):
 def evaluate_picks(league_df: pd.DataFrame, odds_api_key: str, season: int):
     live_odds = get_realtime_odds(odds_api_key)
     merged = league_df.copy()
-    if not live_odds.empty:
+    
+    if not live_odds.empty and 'home_team' in merged.columns:
         merged = pd.merge(merged, live_odds, on=['home_team', 'away_team'], how='left')
-    else:
+    
+    if 'market_home_spread' not in merged.columns or merged['market_home_spread'].isna().all():
         merged['market_home_spread'] = merged['league_home_spread']
+    else:
+        merged['market_home_spread'] = merged['market_home_spread'].fillna(merged['league_home_spread'])
         
     merged['spread_diff'] = merged['league_home_spread'] - merged['market_home_spread']
     merged['key_boost'] = merged.apply(
@@ -84,14 +88,17 @@ def evaluate_picks(league_df: pd.DataFrame, odds_api_key: str, season: int):
     
     def get_rec(row):
         score = row['leverage_score']
+        fav = row.get('favorite_team', row.get('home_team', 'Favorite'))
+        und = row.get('underdog_team', row.get('away_team', 'Underdog'))
+        
         if score >= 1.5:
-            return f"SLAM {row['home_team']} (Home Value)"
+            return f"SLAM {fav} (Favorite Value)"
         elif score <= -1.5:
-            return f"SLAM {row['away_team']} (Away Value)"
+            return f"SLAM {und} (Underdog Value)"
         elif 0.5 <= score < 1.5:
-            return f"Lean {row['home_team']}"
+            return f"Lean {fav}"
         elif -1.5 < score <= -0.5:
-            return f"Lean {row['away_team']}"
+            return f"Lean {und}"
         else:
             return "Pass / Neutral"
             
