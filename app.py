@@ -6,8 +6,8 @@ from model import evaluate_picks, load_team_epa
 
 st.set_page_config(page_title="duuhduuh model", layout="wide")
 
-st.title("🏈 duuhduuh model")
-st.caption("NFL Underdog & Point Spread Differential Engine for Pools")
+st.title(" duuhduuh model")
+st.caption("Point Spread Differential Engine")
 
 st.sidebar.header("duuhduuh Control Panel")
 default_key = st.secrets.get("ODDS_API_KEY", "")
