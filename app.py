@@ -87,27 +87,36 @@ if st.button("Run duuhduuh Model Evaluation"):
         
         st.subheader("2. Recommended Picks & Leverage Scores")
         
-        col1, col2 = st.columns(2)
-        top_pick = results.iloc[results['leverage_score'].abs().idxmax()]
-        col1.metric("Highest Leverage Game", f"{top_pick['favorite_team']} vs {top_pick['underdog_team']}")
-        col2.metric("Top Pick Recommendation", top_pick['recommended_pick'])
-        
-        st.dataframe(
-            results[['favorite_team', 'favorite_spread', 'underdog_team', 'market_home_spread', 'spread_diff', 'leverage_score', 'recommended_pick']],
-            use_container_width=True
-        )
-        
-        fig = px.bar(
-            results,
-            x='favorite_team',
-            y='leverage_score',
-            color='leverage_score',
-            title="Pool Leverage Score (Positive = Favorite Value | Negative = Underdog Value)",
-            color_continuous_scale='RdYlGn'
-        )
-        st.plotly_chart(fig, use_container_width=True)
+        if not results.empty and 'leverage_score' in results.columns:
+            # Sort by absolute leverage score descending and pick top row
+            sorted_results = results.assign(abs_lev=results['leverage_score'].abs()).sort_values(by='abs_lev', ascending=False)
+            top_pick = sorted_results.iloc[0]
+            
+            col1, col2 = st.columns(2)
+            col1.metric("Highest Leverage Game", f"{top_pick['favorite_team']} vs {top_pick['underdog_team']}")
+            col2.metric("Top Pick Recommendation", top_pick['recommended_pick'])
+            
+            st.dataframe(
+                results[['favorite_team', 'favorite_spread', 'underdog_team', 'market_home_spread', 'spread_diff', 'leverage_score', 'recommended_pick']],
+                use_container_width=True
+            )
+            
+            fig = px.bar(
+                results,
+                x='favorite_team',
+                y='leverage_score',
+                color='leverage_score',
+                title="Pool Leverage Score (Positive = Favorite Value | Negative = Underdog Value)",
+                color_continuous_scale='RdYlGn'
+            )
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.warning("No evaluation data could be processed for the selected week/schedule.")
 
 with st.expander("View Season Team EPA Ranks"):
     if st.button("Fetch EPA Data"):
         epa_df = load_team_epa(season)
-        st.dataframe(epa_df.sort_values(by='net_epa', ascending=False), use_container_width=True)
+        if not epa_df.empty:
+            st.dataframe(epa_df.sort_values(by='net_epa', ascending=False), use_container_width=True)
+        else:
+            st.info("EPA data unavailable for this season selection.")
