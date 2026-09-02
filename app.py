@@ -51,67 +51,61 @@ def get_nfl_schedule(season_year, week_num):
 
 full_schedule = get_nfl_schedule(season, selected_week)
 
-if full_schedule.empty:
-    full_schedule = pd.DataFrame({
-        'favorite_team': ['Kansas City Chiefs', 'Dallas Cowboys', 'Detroit Lions', 'Buffalo Bills'],
-        'favorite_spread': [3.0, 2.5, 6.5, 3.5],
-        'underdog_team': ['Baltimore Ravens', 'Philadelphia Eagles', 'Green Bay Packers', 'Miami Dolphins'],
-        'home_team': ['Kansas City Chiefs', 'Dallas Cowboys', 'Detroit Lions', 'Buffalo Bills'],
-        'away_team': ['Baltimore Ravens', 'Philadelphia Eagles', 'Green Bay Packers', 'Miami Dolphins']
-    })
-
 st.subheader(f"1. Input Locked League Lines for Week {selected_week}")
-st.info("Favorites (giving points) are on the left. Underdogs (getting points) are on the right.")
 
-edited_league_df = st.data_editor(
-    full_schedule[['favorite_team', 'favorite_spread', 'underdog_team', 'home_team', 'away_team']], 
-    column_config={
-        "favorite_team": "Favorite (Giving Points)",
-        "favorite_spread": st.column_config.NumberColumn("Spread (Points Given)", help="Enter positive spread (e.g. 3.5)", min_value=0.0, step=0.5),
-        "underdog_team": "Underdog (Receiving Points)",
-        "home_team": None,
-        "away_team": None
-    },
-    use_container_width=True
-)
+if full_schedule.empty:
+    st.warning(f"⚠️ Schedule data for {season} Week {selected_week} is not yet available.")
+else:
+    st.info("Favorites (giving points) are on the left. Underdogs (getting points) are on the right.")
 
-eval_df = edited_league_df.copy()
-eval_df['league_home_spread'] = eval_df.apply(
-    lambda r: -abs(r['favorite_spread']) if r['favorite_team'] == r['home_team'] else abs(r['favorite_spread']),
-    axis=1
-)
+    edited_league_df = st.data_editor(
+        full_schedule[['favorite_team', 'favorite_spread', 'underdog_team', 'home_team', 'away_team']], 
+        column_config={
+            "favorite_team": "Favorite (Giving Points)",
+            "favorite_spread": st.column_config.NumberColumn("Spread (Points Given)", help="Enter positive spread (e.g. 3.5)", min_value=0.0, step=0.5),
+            "underdog_team": "Underdog (Receiving Points)",
+            "home_team": None,
+            "away_team": None
+        },
+        use_container_width=True
+    )
 
-if st.button("Run duuhduuh Model Evaluation"):
-    with st.spinner("Fetching market shifts and calculating pool leverage..."):
-        results = evaluate_picks(eval_df, odds_api_key, season)
-        
-        st.subheader("2. Recommended Picks & Leverage Scores")
-        
-        if not results.empty and 'leverage_score' in results.columns:
-            # Sort by absolute leverage score descending and pick top row
-            sorted_results = results.assign(abs_lev=results['leverage_score'].abs()).sort_values(by='abs_lev', ascending=False)
-            top_pick = sorted_results.iloc[0]
+    eval_df = edited_league_df.copy()
+    eval_df['league_home_spread'] = eval_df.apply(
+        lambda r: -abs(r['favorite_spread']) if r['favorite_team'] == r['home_team'] else abs(r['favorite_spread']),
+        axis=1
+    )
+
+    if st.button("Run duuhduuh Model Evaluation"):
+        with st.spinner("Fetching market shifts and calculating pool leverage..."):
+            results = evaluate_picks(eval_df, odds_api_key, season)
             
-            col1, col2 = st.columns(2)
-            col1.metric("Highest Leverage Game", f"{top_pick['favorite_team']} vs {top_pick['underdog_team']}")
-            col2.metric("Top Pick Recommendation", top_pick['recommended_pick'])
+            st.subheader("2. Recommended Picks & Leverage Scores")
             
-            st.dataframe(
-                results[['favorite_team', 'favorite_spread', 'underdog_team', 'market_home_spread', 'spread_diff', 'leverage_score', 'recommended_pick']],
-                use_container_width=True
-            )
-            
-            fig = px.bar(
-                results,
-                x='favorite_team',
-                y='leverage_score',
-                color='leverage_score',
-                title="Pool Leverage Score (Positive = Favorite Value | Negative = Underdog Value)",
-                color_continuous_scale='RdYlGn'
-            )
-            st.plotly_chart(fig, use_container_width=True)
-        else:
-            st.warning("No evaluation data could be processed for the selected week/schedule.")
+            if not results.empty and 'leverage_score' in results.columns:
+                sorted_results = results.assign(abs_lev=results['leverage_score'].abs()).sort_values(by='abs_lev', ascending=False)
+                top_pick = sorted_results.iloc[0]
+                
+                col1, col2 = st.columns(2)
+                col1.metric("Highest Leverage Game", f"{top_pick['favorite_team']} vs {top_pick['underdog_team']}")
+                col2.metric("Top Pick Recommendation", top_pick['recommended_pick'])
+                
+                st.dataframe(
+                    results[['favorite_team', 'favorite_spread', 'underdog_team', 'market_home_spread', 'spread_diff', 'leverage_score', 'recommended_pick']],
+                    use_container_width=True
+                )
+                
+                fig = px.bar(
+                    results,
+                    x='favorite_team',
+                    y='leverage_score',
+                    color='leverage_score',
+                    title="Pool Leverage Score (Positive = Favorite Value | Negative = Underdog Value)",
+                    color_continuous_scale='RdYlGn'
+                )
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.warning("No evaluation data could be processed for the selected week.")
 
 with st.expander("View Season Team EPA Ranks"):
     if st.button("Fetch EPA Data"):
@@ -119,4 +113,4 @@ with st.expander("View Season Team EPA Ranks"):
         if not epa_df.empty:
             st.dataframe(epa_df.sort_values(by='net_epa', ascending=False), use_container_width=True)
         else:
-            st.info("EPA data unavailable for this season selection.")
+            st.info(f"EPA data for {season} is not yet available.")
