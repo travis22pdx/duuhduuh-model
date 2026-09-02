@@ -62,7 +62,6 @@ if full_schedule.empty:
     })
 
 st.subheader(f"1. Week {selected_week} Schedule ({len(full_schedule)} Games)")
-st.info("💡 Enter your pool's locked home team spreads in the 'league_home_spread' column below (e.g., -3.0 or 4.5).")
 
 edited_league_df = st.data_editor(full_schedule, num_rows="dynamic", use_container_width=True)
 
