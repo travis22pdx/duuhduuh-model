@@ -16,7 +16,7 @@ st.title("duuhduuh model")
 st.markdown(
     """
 Evaluate weekly Pick'em slate opportunities by comparing your **locked pool lines** 
-against **live consensus sportsbook odds**.
+against **live consensus sportsbook odds**. Every game yields a decisive pick.
 """
 )
 
@@ -216,7 +216,7 @@ edited_df = st.data_editor(
 # ==========================================
 st.markdown("---")
 if st.button("Run duuhduuh Model Evaluation", type="primary"):
-    st.subheader("2. Recommended Picks & Leverage Scores")
+    st.subheader("2. Mandatory Picks & Leverage Scores")
 
     results = []
 
@@ -225,7 +225,6 @@ if st.button("Run duuhduuh Model Evaluation", type="primary"):
         dog = row["underdog_team"]
         pool_spread = float(row["favorite_spread"])
 
-        # Default live market line matches schedule baseline unless API replaces it
         vegas_spread = pool_spread
 
         spread_diff = vegas_spread - pool_spread
@@ -233,16 +232,18 @@ if st.button("Run duuhduuh Model Evaluation", type="primary"):
 
         leverage_score = (spread_diff * 1.5) + (key_boost * key_boost_weight)
 
+        # Forced pick logic (No Neutral / Pass permitted)
         if leverage_score >= 1.5:
-            rec = f"SLAM {fav} (Favorite Value)"
-        elif leverage_score >= 0.5:
-            rec = f"Lean {fav}"
+            rec = f"SLAM {fav} (High Value)"
+        elif leverage_score > 0.0:
+            rec = f"PICK {fav} (Market Value)"
         elif leverage_score <= -1.5:
-            rec = f"SLAM {dog} (Underdog Value)"
-        elif leverage_score <= -0.5:
-            rec = f"Lean {dog}"
+            rec = f"SLAM {dog} (High Value)"
+        elif leverage_score < 0.0:
+            rec = f"PICK {dog} (Market Value)"
         else:
-            rec = "Pass / Neutral"
+            # Equal spread tie-breaker defaults to market favorite
+            rec = f"PICK {fav} (Baseline Favorite)"
 
         results.append(
             {
@@ -252,7 +253,7 @@ if st.button("Run duuhduuh Model Evaluation", type="primary"):
                 "Market Spread": vegas_spread,
                 "Spread Gap": round(spread_diff, 1),
                 "Leverage Score": round(leverage_score, 2),
-                "Recommended Pick": rec,
+                "Mandatory Pick": rec,
             }
         )
 
@@ -262,8 +263,8 @@ if st.button("Run duuhduuh Model Evaluation", type="primary"):
         results_df["Leverage Score"].abs().idxmax()
     ]
     col1, col2 = st.columns(2)
-    col1.metric("Highest Leverage Game", f"{top_pick['Favorite']} vs {top_pick['Underdog']}")
-    col2.metric("Top Pick Recommendation", top_pick["Recommended Pick"])
+    col1.metric("Highest Leverage Matchup", f"{top_pick['Favorite']} vs {top_pick['Underdog']}")
+    col2.metric("Primary Recommended Pick", top_pick["Mandatory Pick"])
 
     st.dataframe(
         results_df,
