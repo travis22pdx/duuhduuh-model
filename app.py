@@ -1,136 +1,253 @@
-import streamlit as st
+import numpy as np
 import pandas as pd
-import plotly.express as px
-import nfl_data_py as nfl
-from model import evaluate_picks, load_team_epa
+import requests
+import streamlit as st
 
-st.set_page_config(page_title="duuhduuh model", layout="wide")
+# ==========================================
+# PAGE CONFIGURATION
+# ==========================================
+st.set_page_config(
+    page_title="NFL Pick'em Model & Line Value Evaluator",
+    page_icon="🏈",
+    layout="wide",
+)
 
-st.title("duuhduuh model")
+st.title("🏈 NFL Pick'em Model & Line Value Evaluator")
+st.markdown(
+    """
+Evaluate weekly Pick'em slate opportunities by comparing your **locked pool lines** 
+against **live consensus sportsbook odds**.
+"""
+)
 
-st.sidebar.header("duuhduuh Control Panel")
-default_key = st.secrets.get("ODDS_API_KEY", "")
-odds_api_key = st.sidebar.text_input("The Odds API Key", value=default_key, type="password")
+# ==========================================
+# SIDEBAR CONTROL PANEL
+# ==========================================
+st.sidebar.header("⚙️ Model Controls")
+odds_api_key = st.sidebar.text_input(
+    "The Odds API Key (Optional)",
+    type="password",
+    help="Enter your API key from the-odds-api.com for live odds fetching.",
+)
 
-season = st.sidebar.number_input("Season", min_value=2023, max_value=2026, value=2025)
-selected_week = st.sidebar.number_input("Week", min_value=1, max_value=18, value=1)
+key_boost_weight = st.sidebar.slider(
+    "Key Number Threshold Boost",
+    min_value=0.0,
+    max_value=3.0,
+    value=1.5,
+    step=0.25,
+    help="Weight applied when line differences cross key NFL margins (3, 7, 6, 10, 4).",
+)
 
-@st.cache_data
-def get_nfl_schedule(season_year, week_num):
+
+# ==========================================
+# HELPER FUNCTIONS & DATA LOGIC
+# ==========================================
+def fetch_live_odds(api_key):
+    """Fetch live NFL game lines from The Odds API."""
+    if not api_key:
+        return None
+
+    url = f"https://api.the-odds-api.com/v4/sports/americanfootball_nfl/odds/"
+    params = {
+        "apiKey": api_key,
+        "regions": "us",
+        "markets": "spreads",
+        "oddsFormat": "american",
+    }
+
     try:
-        sched = nfl.import_schedules([season_year])
-        week_games = sched[(sched['week'] == week_num) & (sched['game_type'] == 'REG')].copy()
-        
-        if week_games.empty:
-            return pd.DataFrame()
-            
-        team_mapping = {
-            'ARI': 'Arizona Cardinals', 'ATL': 'Atlanta Falcons', 'BAL': 'Baltimore Ravens',
-            'BUF': 'Buffalo Bills', 'CAR': 'Carolina Panthers', 'CHI': 'Chicago Bears',
-            'CIN': 'Cincinnati Bengals', 'CLE': 'Cleveland Browns', 'DAL': 'Dallas Cowboys',
-            'DEN': 'Denver Broncos', 'DET': 'Detroit Lions', 'GB': 'Green Bay Packers',
-            'HOU': 'Houston Texans', 'IND': 'Indianapolis Colts', 'JAX': 'Jacksonville Jaguars',
-            'KC': 'Kansas City Chiefs', 'LA': 'Los Angeles Rams', 'LAC': 'Los Angeles Chargers',
-            'LV': 'Las Vegas Raiders', 'MIA': 'Miami Dolphins', 'MIN': 'Minnesota Vikings',
-            'NE': 'New England Patriots', 'NO': 'New Orleans Saints', 'NYG': 'New York Giants',
-            'NYJ': 'New York Jets', 'PHI': 'Philadelphia Eagles', 'PIT': 'Pittsburgh Steelers',
-            'SEA': 'Seattle Seahawks', 'SF': 'San Francisco 49ers', 'TB': 'Tampa Bay Buccaneers',
-            'TEN': 'Tennessee Titans', 'WAS': 'Washington Commanders'
-        }
-
-        records = []
-        for _, row in week_games.iterrows():
-            home = team_mapping.get(row['home_team'], row['home_team'])
-            away = team_mapping.get(row['away_team'], row['away_team'])
-            spread = row.get('spread_line', 0.0)
-            
-            if pd.isna(spread):
-                spread = 3.0
-
-            # In nfl_data_py: negative spread_line = Home favored; positive spread_line = Away favored
-            if spread <= 0:
-                fav_team = home
-                und_team = away
-                fav_spread = abs(spread)
-            else:
-                fav_team = away
-                und_team = home
-                fav_spread = abs(spread)
-
-            records.append({
-                'favorite_team': fav_team,
-                'favorite_spread': fav_spread,
-                'underdog_team': und_team,
-                'home_team': home,
-                'away_team': away
-            })
-
-        return pd.DataFrame(records)
-    except Exception as e:
-        return pd.DataFrame()
-
-full_schedule = get_nfl_schedule(season, selected_week)
-
-st.subheader(f"1. Input Locked League Lines for Week {selected_week}")
-
-if full_schedule.empty:
-    st.warning(f"⚠️ Schedule data for {season} Week {selected_week} is not yet available.")
-else:
-    st.info("Favorites (giving points) are on the left. Underdogs (getting points) are on the right.")
-
-    edited_league_df = st.data_editor(
-        full_schedule[['favorite_team', 'favorite_spread', 'underdog_team', 'home_team', 'away_team']], 
-        column_config={
-            "favorite_team": "Favorite (Giving Points)",
-            "favorite_spread": st.column_config.NumberColumn("Spread (Points Given)", help="Actual market spread pre-populated", min_value=0.0, step=0.5),
-            "underdog_team": "Underdog (Receiving Points)",
-            "home_team": None,
-            "away_team": None
-        },
-        use_container_width=True
-    )
-
-    eval_df = edited_league_df.copy()
-    eval_df['league_home_spread'] = eval_df.apply(
-        lambda r: -abs(r['favorite_spread']) if r['favorite_team'] == r['home_team'] else abs(r['favorite_spread']),
-        axis=1
-    )
-
-    if st.button("Run duuhduuh Model Evaluation"):
-        with st.spinner("Fetching market shifts and calculating pool leverage..."):
-            results = evaluate_picks(eval_df, odds_api_key, season)
-            
-            st.subheader("2. Recommended Picks & Leverage Scores")
-            
-            if not results.empty and 'leverage_score' in results.columns:
-                sorted_results = results.assign(abs_lev=results['leverage_score'].abs()).sort_values(by='abs_lev', ascending=False)
-                top_pick = sorted_results.iloc[0]
-                
-                col1, col2 = st.columns(2)
-                col1.metric("Highest Leverage Game", f"{top_pick['favorite_team']} vs {top_pick['underdog_team']}")
-                col2.metric("Top Pick Recommendation", top_pick['recommended_pick'])
-                
-                st.dataframe(
-                    results[['favorite_team', 'favorite_spread', 'underdog_team', 'market_home_spread', 'spread_diff', 'leverage_score', 'recommended_pick']],
-                    use_container_width=True
-                )
-                
-                fig = px.bar(
-                    results,
-                    x='favorite_team',
-                    y='leverage_score',
-                    color='leverage_score',
-                    title="Pool Leverage Score (Positive = Favorite Value | Negative = Underdog Value)",
-                    color_continuous_scale='RdYlGn'
-                )
-                st.plotly_chart(fig, use_container_width=True)
-            else:
-                st.warning("No evaluation data could be processed for the selected week.")
-
-with st.expander("View Season Team EPA Ranks"):
-    if st.button("Fetch EPA Data"):
-        epa_df = load_team_epa(season)
-        if not epa_df.empty:
-            st.dataframe(epa_df.sort_values(by='net_epa', ascending=False), use_container_width=True)
+        response = requests.get(url, params=params, timeout=10)
+        if response.status_code == 200:
+            return response.json()
         else:
-            st.info(f"EPA data for {season} is not yet available.")
+            st.sidebar.error(f"API Error: {response.status_code}")
+            return None
+    except Exception as e:
+        st.sidebar.error(f"Failed to connect: {str(e)}")
+        return None
+
+
+def get_default_schedule():
+    """Provides fallback default slate structure with corrected Favorite/Underdog pairs."""
+    return [
+        {
+            "home_team": "Patriots",
+            "away_team": "Seahawks",
+            "home_spread": 3.5,
+        },  # Away Fav: Seahawks (-3.5)
+        {
+            "home_team": "49ers",
+            "away_team": "Rams",
+            "home_spread": 4.5,
+        },  # Away Fav: Rams (-4.5)
+        {
+            "home_team": "Chiefs",
+            "away_team": "Ravens",
+            "home_spread": -3.0,
+        },  # Home Fav: Chiefs (-3.0)
+        {
+            "home_team": "Eagles",
+            "away_team": "Packers",
+            "home_spread": -2.5,
+        },  # Home Fav: Eagles (-2.5)
+        {
+            "home_team": "Lions",
+            "away_team": "Rams",
+            "home_spread": -3.5,
+        },  # Home Fav: Lions (-3.5)
+    ]
+
+
+def parse_and_format_games(raw_games):
+    """Correctly parses game dicts into Favorite vs Underdog regardless of Home/Away location."""
+    formatted_data = []
+
+    for game in raw_games:
+        home = game.get("home_team", "Home")
+        away = game.get("away_team", "Away")
+        # Market spreads are relative to Home Team
+        home_spread = game.get("home_spread", 0.0)
+
+        if home_spread < 0:
+            # Home team is favored (giving points)
+            favorite = home
+            underdog = away
+            spread_points = abs(home_spread)
+        elif home_spread > 0:
+            # Away team is favored (giving points)
+            favorite = away
+            underdog = home
+            spread_points = abs(home_spread)
+        else:
+            # Pick 'em line
+            favorite = home
+            underdog = away
+            spread_points = 0.0
+
+        formatted_data.append(
+            {
+                "Favorite (Giving Points)": favorite,
+                "Spread (Points Given)": float(spread_points),
+                "Underdog (Receiving Points)": underdog,
+                "Vegas Live Spread": float(spread_points),
+            }
+        )
+
+    return pd.DataFrame(formatted_data)
+
+
+def calculate_key_boost(pool_spread, vegas_spread):
+    """Detects if line difference crosses critical NFL key numbers (3, 7, 6, 10, 4)."""
+    key_numbers = [3.0, 7.0, 6.0, 10.0, 4.0]
+    boost = 0.0
+
+    low_val = min(pool_spread, vegas_spread)
+    high_val = max(pool_spread, vegas_spread)
+
+    for kn in key_numbers:
+        if low_val < kn <= high_val:
+            boost += 1.0
+
+    return boost
+
+
+# ==========================================
+# SECTION 1: USER INPUT & TABLE
+# ==========================================
+st.subheader("Section 1: Input Locked League Lines")
+st.write(
+    "Enter your pool's exact locked lines below. Adjust team names if needed:"
+)
+
+# Load data feed or fallback schedule
+raw_games = get_default_schedule()
+initial_df = parse_and_format_games(raw_games)
+
+# Display interactive data table
+edited_df = st.data_editor(
+    initial_df,
+    column_config={
+        "Favorite (Giving Points)": st.column_config.TextColumn(
+            "Favorite (Giving Points)", help="Team favored by your league line"
+        ),
+        "Spread (Points Given)": st.column_config.NumberColumn(
+            "Spread (Points Given)",
+            help="Your league's locked spread value",
+            min_value=0.0,
+            max_value=30.0,
+            step=0.5,
+            format="%.1f",
+        ),
+        "Underdog (Receiving Points)": st.column_config.TextColumn(
+            "Underdog (Receiving Points)",
+            help="Team receiving points in your league",
+        ),
+        "Vegas Live Spread": st.column_config.NumberColumn(
+            "Vegas Market Spread",
+            help="Current live sportsbook consensus spread",
+            format="%.1f",
+            disabled=True,
+        ),
+    },
+    use_container_width=True,
+    num_rows="dynamic",
+)
+
+# ==========================================
+# SECTION 2: EVALUATION & RESULTS
+# ==========================================
+st.markdown("---")
+if st.button("🚀 Run Model Evaluation", type="primary"):
+    st.subheader("Section 2: Model Evaluation & Opportunity Recommendations")
+
+    results = []
+
+    for _, row in edited_df.iterrows():
+        fav = row["Favorite (Giving Points)"]
+        dog = row["Underdog (Receiving Points)"]
+        pool_spread = float(row["Spread (Points Given)"])
+        vegas_spread = float(row["Vegas Live Spread"])
+
+        # Calculate line difference
+        spread_diff = vegas_spread - pool_spread
+        key_boost = calculate_key_boost(pool_spread, vegas_spread)
+
+        # Leverage Score Math
+        leverage_score = (spread_diff * 1.5) + (
+            key_boost * key_boost_weight
+        )
+
+        # Signal Recommendation
+        if leverage_score >= 1.5:
+            rec = f"🔥 SLAM {fav} (-{pool_spread})"
+        elif leverage_score >= 0.5:
+            rec = f"👍 Lean {fav} (-{pool_spread})"
+        elif leverage_score <= -1.5:
+            rec = f"🔥 SLAM {dog} (+{pool_spread})"
+        elif leverage_score <= -0.5:
+            rec = f"👍 Lean {dog} (+{pool_spread})"
+        else:
+            rec = "➡️ Neutral / Fair Value"
+
+        results.append(
+            {
+                "Matchup": f"{fav} vs {dog}",
+                "Pool Spread": f"{fav} -{pool_spread}",
+                "Vegas Spread": f"{fav} -{vegas_spread}",
+                "Spread Gap": round(spread_diff, 1),
+                "Key Cross Boost": "Yes" if key_boost > 0 else "No",
+                "Leverage Score": round(leverage_score, 2),
+                "Recommended Pick": rec,
+            }
+        )
+
+    results_df = pd.DataFrame(results)
+
+    # Display results table
+    st.dataframe(
+        results_df.style.highlight_max(
+            subset=["Leverage Score"], color="#d4edda"
+        ).highlight_min(subset=["Leverage Score"], color="#f8d7da"),
+        use_container_width=True,
+    )
