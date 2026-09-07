@@ -19,7 +19,7 @@ selected_week = st.sidebar.number_input("Week", min_value=1, max_value=18, value
 def get_nfl_schedule(season_year, week_num):
     try:
         sched = nfl.import_schedules([season_year])
-        week_games = sched[(sched['week'] == week_num) & (sched['game_type'] == 'REG')]
+        week_games = sched[(sched['week'] == week_num) & (sched['game_type'] == 'REG')].copy()
         
         if week_games.empty:
             return pd.DataFrame()
@@ -38,9 +38,15 @@ def get_nfl_schedule(season_year, week_num):
             'TEN': 'Tennessee Titans', 'WAS': 'Washington Commanders'
         }
         
+        # Pull the absolute spread value from spread_line; fallback to 3.0 if missing
+        if 'spread_line' in week_games.columns:
+            week_games['extracted_spread'] = week_games['spread_line'].abs().fillna(3.0)
+        else:
+            week_games['extracted_spread'] = 3.0
+
         schedule_df = pd.DataFrame({
             'favorite_team': week_games['home_team'].map(team_mapping).fillna(week_games['home_team']),
-            'favorite_spread': 3.0,
+            'favorite_spread': week_games['extracted_spread'],
             'underdog_team': week_games['away_team'].map(team_mapping).fillna(week_games['away_team']),
             'home_team': week_games['home_team'].map(team_mapping).fillna(week_games['home_team']),
             'away_team': week_games['away_team'].map(team_mapping).fillna(week_games['away_team'])
@@ -62,7 +68,7 @@ else:
         full_schedule[['favorite_team', 'favorite_spread', 'underdog_team', 'home_team', 'away_team']], 
         column_config={
             "favorite_team": "Favorite (Giving Points)",
-            "favorite_spread": st.column_config.NumberColumn("Spread (Points Given)", help="Enter positive spread (e.g. 3.5)", min_value=0.0, step=0.5),
+            "favorite_spread": st.column_config.NumberColumn("Spread (Points Given)", help="Actual market spread pre-populated", min_value=0.0, step=0.5),
             "underdog_team": "Underdog (Receiving Points)",
             "home_team": None,
             "away_team": None
