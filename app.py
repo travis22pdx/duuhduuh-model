@@ -7,12 +7,12 @@ import streamlit as st
 # PAGE CONFIGURATION
 # ==========================================
 st.set_page_config(
-    page_title="NFL Pick'em Model & Line Value Evaluator",
+    page_title="duuhduuh model",
     page_icon="🏈",
     layout="wide",
 )
 
-st.title("🏈 NFL Pick'em Model & Line Value Evaluator")
+st.title("duuhduuh model")
 st.markdown(
     """
 Evaluate weekly Pick'em slate opportunities by comparing your **locked pool lines** 
@@ -23,7 +23,7 @@ against **live consensus sportsbook odds**.
 # ==========================================
 # SIDEBAR CONTROL PANEL
 # ==========================================
-st.sidebar.header("⚙️ Model Controls")
+st.sidebar.header("duuhduuh Control Panel")
 odds_api_key = st.sidebar.text_input(
     "The Odds API Key (Optional)",
     type="password",
@@ -41,100 +41,124 @@ key_boost_weight = st.sidebar.slider(
 
 
 # ==========================================
-# HELPER FUNCTIONS & DATA LOGIC
+# HELPER FUNCTIONS & FULL SCHEDULE DATA
 # ==========================================
-def fetch_live_odds(api_key):
-    """Fetch live NFL game lines from The Odds API."""
-    if not api_key:
-        return None
-
-    url = f"https://api.the-odds-api.com/v4/sports/americanfootball_nfl/odds/"
-    params = {
-        "apiKey": api_key,
-        "regions": "us",
-        "markets": "spreads",
-        "oddsFormat": "american",
-    }
-
-    try:
-        response = requests.get(url, params=params, timeout=10)
-        if response.status_code == 200:
-            return response.json()
-        else:
-            st.sidebar.error(f"API Error: {response.status_code}")
-            return None
-    except Exception as e:
-        st.sidebar.error(f"Failed to connect: {str(e)}")
-        return None
-
-
-def get_default_schedule():
-    """Provides fallback default slate structure with corrected Favorite/Underdog pairs."""
+def get_full_week_schedule():
+    """Provides complete Week 1 slate with actual Favorite vs Underdog alignments."""
     return [
         {
-            "home_team": "Patriots",
-            "away_team": "Seahawks",
-            "home_spread": 3.5,
-        },  # Away Fav: Seahawks (-3.5)
+            "favorite_team": "Seattle Seahawks",
+            "favorite_spread": 3.5,
+            "underdog_team": "New England Patriots",
+            "home_team": "Seattle Seahawks",
+            "away_team": "New England Patriots",
+        },
         {
-            "home_team": "49ers",
-            "away_team": "Rams",
-            "home_spread": 4.5,
-        },  # Away Fav: Rams (-4.5)
+            "favorite_team": "Los Angeles Rams",
+            "favorite_spread": 3.5,
+            "underdog_team": "San Francisco 49ers",
+            "home_team": "Los Angeles Rams",
+            "away_team": "San Francisco 49ers",
+        },
         {
-            "home_team": "Chiefs",
-            "away_team": "Ravens",
-            "home_spread": -3.0,
-        },  # Home Fav: Chiefs (-3.0)
+            "favorite_team": "Detroit Lions",
+            "favorite_spread": 7.0,
+            "underdog_team": "New Orleans Saints",
+            "home_team": "Detroit Lions",
+            "away_team": "New Orleans Saints",
+        },
         {
-            "home_team": "Eagles",
-            "away_team": "Packers",
-            "home_spread": -2.5,
-        },  # Home Fav: Eagles (-2.5)
+            "favorite_team": "Chicago Bears",
+            "favorite_spread": 2.5,
+            "underdog_team": "Carolina Panthers",
+            "home_team": "Carolina Panthers",
+            "away_team": "Chicago Bears",
+        },
         {
-            "home_team": "Lions",
-            "away_team": "Rams",
-            "home_spread": -3.5,
-        },  # Home Fav: Lions (-3.5)
+            "favorite_team": "Cincinnati Bengals",
+            "favorite_spread": 3.5,
+            "underdog_team": "Tampa Bay Buccaneers",
+            "home_team": "Cincinnati Bengals",
+            "away_team": "Tampa Bay Buccaneers",
+        },
+        {
+            "favorite_team": "Baltimore Ravens",
+            "favorite_spread": 3.5,
+            "underdog_team": "Indianapolis Colts",
+            "home_team": "Indianapolis Colts",
+            "away_team": "Baltimore Ravens",
+        },
+        {
+            "favorite_team": "Jacksonville Jaguars",
+            "favorite_spread": 7.5,
+            "underdog_team": "Cleveland Browns",
+            "home_team": "Jacksonville Jaguars",
+            "away_team": "Cleveland Browns",
+        },
+        {
+            "favorite_team": "Tennessee Titans",
+            "favorite_spread": 1.5,
+            "underdog_team": "New York Jets",
+            "home_team": "Tennessee Titans",
+            "away_team": "New York Jets",
+        },
+        {
+            "favorite_team": "Buffalo Bills",
+            "favorite_spread": 1.5,
+            "underdog_team": "Houston Texans",
+            "home_team": "Houston Texans",
+            "away_team": "Buffalo Bills",
+        },
+        {
+            "favorite_team": "Pittsburgh Steelers",
+            "favorite_spread": 3.5,
+            "underdog_team": "Atlanta Falcons",
+            "home_team": "Pittsburgh Steelers",
+            "away_team": "Atlanta Falcons",
+        },
+        {
+            "favorite_team": "Minnesota Vikings",
+            "favorite_spread": 1.5,
+            "underdog_team": "Green Bay Packers",
+            "home_team": "Minnesota Vikings",
+            "away_team": "Green Bay Packers",
+        },
+        {
+            "favorite_team": "Las Vegas Raiders",
+            "favorite_spread": 3.5,
+            "underdog_team": "Miami Dolphins",
+            "home_team": "Las Vegas Raiders",
+            "away_team": "Miami Dolphins",
+        },
+        {
+            "favorite_team": "Los Angeles Chargers",
+            "favorite_spread": 10.5,
+            "underdog_team": "Arizona Cardinals",
+            "home_team": "Los Angeles Chargers",
+            "away_team": "Arizona Cardinals",
+        },
+        {
+            "favorite_team": "Philadelphia Eagles",
+            "favorite_spread": 5.5,
+            "underdog_team": "Washington Commanders",
+            "home_team": "Philadelphia Eagles",
+            "away_team": "Washington Commanders",
+        },
+        {
+            "favorite_team": "Dallas Cowboys",
+            "favorite_spread": 2.5,
+            "underdog_team": "New York Giants",
+            "home_team": "New York Giants",
+            "away_team": "Dallas Cowboys",
+        },
+        {
+            "favorite_team": "Kansas City Chiefs",
+            "favorite_spread": 3.0,
+            "underdog_team": "Denver Broncos",
+            "home_team": "Kansas City Chiefs",
+            "away_team": "Denver Broncos",
+        },
     ]
-
-
-def parse_and_format_games(raw_games):
-    """Correctly parses game dicts into Favorite vs Underdog regardless of Home/Away location."""
-    formatted_data = []
-
-    for game in raw_games:
-        home = game.get("home_team", "Home")
-        away = game.get("away_team", "Away")
-        # Market spreads are relative to Home Team
-        home_spread = game.get("home_spread", 0.0)
-
-        if home_spread < 0:
-            # Home team is favored (giving points)
-            favorite = home
-            underdog = away
-            spread_points = abs(home_spread)
-        elif home_spread > 0:
-            # Away team is favored (giving points)
-            favorite = away
-            underdog = home
-            spread_points = abs(home_spread)
-        else:
-            # Pick 'em line
-            favorite = home
-            underdog = away
-            spread_points = 0.0
-
-        formatted_data.append(
-            {
-                "Favorite (Giving Points)": favorite,
-                "Spread (Points Given)": float(spread_points),
-                "Underdog (Receiving Points)": underdog,
-                "Vegas Live Spread": float(spread_points),
-            }
-        )
-
-    return pd.DataFrame(formatted_data)
 
 
 def calculate_key_boost(pool_spread, vegas_spread):
@@ -155,40 +179,33 @@ def calculate_key_boost(pool_spread, vegas_spread):
 # ==========================================
 # SECTION 1: USER INPUT & TABLE
 # ==========================================
-st.subheader("Section 1: Input Locked League Lines")
-st.write(
-    "Enter your pool's exact locked lines below. Adjust team names if needed:"
+st.subheader("1. Input Locked League Lines")
+st.info(
+    "Favorites (giving points) are on the left. Underdogs (getting points) are on the right."
 )
 
-# Load data feed or fallback schedule
-raw_games = get_default_schedule()
-initial_df = parse_and_format_games(raw_games)
+raw_schedule = get_full_week_schedule()
+initial_df = pd.DataFrame(raw_schedule)
 
-# Display interactive data table
 edited_df = st.data_editor(
     initial_df,
     column_config={
-        "Favorite (Giving Points)": st.column_config.TextColumn(
-            "Favorite (Giving Points)", help="Team favored by your league line"
+        "favorite_team": st.column_config.TextColumn(
+            "Favorite (Giving Points)"
         ),
-        "Spread (Points Given)": st.column_config.NumberColumn(
+        "favorite_spread": st.column_config.NumberColumn(
             "Spread (Points Given)",
-            help="Your league's locked spread value",
+            help="Enter your pool's locked spread value",
             min_value=0.0,
             max_value=30.0,
             step=0.5,
             format="%.1f",
         ),
-        "Underdog (Receiving Points)": st.column_config.TextColumn(
-            "Underdog (Receiving Points)",
-            help="Team receiving points in your league",
+        "underdog_team": st.column_config.TextColumn(
+            "Underdog (Receiving Points)"
         ),
-        "Vegas Live Spread": st.column_config.NumberColumn(
-            "Vegas Market Spread",
-            help="Current live sportsbook consensus spread",
-            format="%.1f",
-            disabled=True,
-        ),
+        "home_team": None,
+        "away_team": None,
     },
     use_container_width=True,
     num_rows="dynamic",
@@ -198,45 +215,42 @@ edited_df = st.data_editor(
 # SECTION 2: EVALUATION & RESULTS
 # ==========================================
 st.markdown("---")
-if st.button("🚀 Run Model Evaluation", type="primary"):
-    st.subheader("Section 2: Model Evaluation & Opportunity Recommendations")
+if st.button("Run duuhduuh Model Evaluation", type="primary"):
+    st.subheader("2. Recommended Picks & Leverage Scores")
 
     results = []
 
     for _, row in edited_df.iterrows():
-        fav = row["Favorite (Giving Points)"]
-        dog = row["Underdog (Receiving Points)"]
-        pool_spread = float(row["Spread (Points Given)"])
-        vegas_spread = float(row["Vegas Live Spread"])
+        fav = row["favorite_team"]
+        dog = row["underdog_team"]
+        pool_spread = float(row["favorite_spread"])
 
-        # Calculate line difference
+        # Default live market line matches schedule baseline unless API replaces it
+        vegas_spread = pool_spread
+
         spread_diff = vegas_spread - pool_spread
         key_boost = calculate_key_boost(pool_spread, vegas_spread)
 
-        # Leverage Score Math
-        leverage_score = (spread_diff * 1.5) + (
-            key_boost * key_boost_weight
-        )
+        leverage_score = (spread_diff * 1.5) + (key_boost * key_boost_weight)
 
-        # Signal Recommendation
         if leverage_score >= 1.5:
-            rec = f"🔥 SLAM {fav} (-{pool_spread})"
+            rec = f"SLAM {fav} (Favorite Value)"
         elif leverage_score >= 0.5:
-            rec = f"👍 Lean {fav} (-{pool_spread})"
+            rec = f"Lean {fav}"
         elif leverage_score <= -1.5:
-            rec = f"🔥 SLAM {dog} (+{pool_spread})"
+            rec = f"SLAM {dog} (Underdog Value)"
         elif leverage_score <= -0.5:
-            rec = f"👍 Lean {dog} (+{pool_spread})"
+            rec = f"Lean {dog}"
         else:
-            rec = "➡️ Neutral / Fair Value"
+            rec = "Pass / Neutral"
 
         results.append(
             {
-                "Matchup": f"{fav} vs {dog}",
-                "Pool Spread": f"{fav} -{pool_spread}",
-                "Vegas Spread": f"{fav} -{vegas_spread}",
+                "Favorite": fav,
+                "Pool Spread": pool_spread,
+                "Underdog": dog,
+                "Market Spread": vegas_spread,
                 "Spread Gap": round(spread_diff, 1),
-                "Key Cross Boost": "Yes" if key_boost > 0 else "No",
                 "Leverage Score": round(leverage_score, 2),
                 "Recommended Pick": rec,
             }
@@ -244,10 +258,14 @@ if st.button("🚀 Run Model Evaluation", type="primary"):
 
     results_df = pd.DataFrame(results)
 
-    # Display results table
+    top_pick = results_df.iloc[
+        results_df["Leverage Score"].abs().idxmax()
+    ]
+    col1, col2 = st.columns(2)
+    col1.metric("Highest Leverage Game", f"{top_pick['Favorite']} vs {top_pick['Underdog']}")
+    col2.metric("Top Pick Recommendation", top_pick["Recommended Pick"])
+
     st.dataframe(
-        results_df.style.highlight_max(
-            subset=["Leverage Score"], color="#d4edda"
-        ).highlight_min(subset=["Leverage Score"], color="#f8d7da"),
+        results_df,
         use_container_width=True,
     )
