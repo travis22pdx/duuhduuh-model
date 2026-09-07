@@ -37,21 +37,35 @@ def get_nfl_schedule(season_year, week_num):
             'SEA': 'Seattle Seahawks', 'SF': 'San Francisco 49ers', 'TB': 'Tampa Bay Buccaneers',
             'TEN': 'Tennessee Titans', 'WAS': 'Washington Commanders'
         }
-        
-        # Pull the absolute spread value from spread_line; fallback to 3.0 if missing
-        if 'spread_line' in week_games.columns:
-            week_games['extracted_spread'] = week_games['spread_line'].abs().fillna(3.0)
-        else:
-            week_games['extracted_spread'] = 3.0
 
-        schedule_df = pd.DataFrame({
-            'favorite_team': week_games['home_team'].map(team_mapping).fillna(week_games['home_team']),
-            'favorite_spread': week_games['extracted_spread'],
-            'underdog_team': week_games['away_team'].map(team_mapping).fillna(week_games['away_team']),
-            'home_team': week_games['home_team'].map(team_mapping).fillna(week_games['home_team']),
-            'away_team': week_games['away_team'].map(team_mapping).fillna(week_games['away_team'])
-        })
-        return schedule_df
+        records = []
+        for _, row in week_games.iterrows():
+            home = team_mapping.get(row['home_team'], row['home_team'])
+            away = team_mapping.get(row['away_team'], row['away_team'])
+            spread = row.get('spread_line', 0.0)
+            
+            if pd.isna(spread):
+                spread = 3.0
+
+            # In nfl_data_py: negative spread_line = Home favored; positive spread_line = Away favored
+            if spread <= 0:
+                fav_team = home
+                und_team = away
+                fav_spread = abs(spread)
+            else:
+                fav_team = away
+                und_team = home
+                fav_spread = abs(spread)
+
+            records.append({
+                'favorite_team': fav_team,
+                'favorite_spread': fav_spread,
+                'underdog_team': und_team,
+                'home_team': home,
+                'away_team': away
+            })
+
+        return pd.DataFrame(records)
     except Exception as e:
         return pd.DataFrame()
 
